@@ -55,7 +55,7 @@ class Inference:
             "steps_per_print": 2000,
             "train_batch_size": self.train_batch_size,
             "train_micro_batch_size_per_gpu": 1,
-            "wall_clock_breakdown": False
+            "wall_clock_breakdown": True
         }
 
         # keep this object alive since we're not using transformers Trainer
@@ -67,16 +67,17 @@ class Inference:
 
         # we are ready to initialise deepspeed ZeRO now
         self.ds_engine = deepspeed.initialize(model=self.model,
-                                         config_params=ds_config,
-                                         model_parameters=None,
-                                         optimizer=None,
-                                         lr_scheduler=None)[0]
+                                              config_params=ds_config,
+                                              model_parameters=None,
+                                              optimizer=None,
+                                              lr_scheduler=None)[0]
         self.ds_engine.module.eval()  # inference
 
     def load_dataset(self, num_truncate=None):
         df = pd.read_csv('conjunction_fallacy-0shot.csv').iloc[:, 1:]  # drop nonsensical 1st column
         if num_truncate:
             df = df[:num_truncate]
+            print(f"Running with dataset truncated to {num_truncate} examples")
         examples = df.to_dict('records')
         return examples
 
@@ -150,9 +151,16 @@ class Inference:
 
 
 if __name__ == '__main__':
+
+    NUM_TRUNCATE = 5
+
     infer = Inference()
-    dataset = infer.load_dataset(num_truncate=10)
+    dataset = infer.load_dataset(num_truncate=NUM_TRUNCATE)
+
+    st = time.time()
     result = infer.evaluate_classification(dataset)
+    print(f"Time taken: {time.time() - st}")
+
     print(result)
 
 
