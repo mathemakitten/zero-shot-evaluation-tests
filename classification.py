@@ -25,23 +25,6 @@ torch.cuda.set_device(local_rank)
 deepspeed.init_distributed()
 
 
-# def get_logits_and_tokens(self, prompts):
-#     all_logits = []
-#     all_tokens = []
-#
-#     for prompt in prompts:
-#         tokenized_inputs = self.tokenizer(
-#             prompt, return_tensors="pt", truncation=True
-#         ).to(device=local_rank)
-#         outputs = self.ds_engine.module(**tokenized_inputs)
-#         logits = outputs["logits"].detach().to(device="cpu", dtype=torch.float32)
-#
-#         # need to remove batch dimension
-#         all_logits.append(torch.squeeze(logits))
-#         all_tokens.append(torch.squeeze(tokenized_inputs["input_ids"]))
-#     return all_logits, all_tokens
-
-
 def load_dataset(num_truncate=None):
     df = pd.read_csv('conjunction_fallacy-0shot.csv').iloc[:, 1:]  # drop nonsensical 1st column
     if num_truncate:
@@ -117,7 +100,7 @@ class Inference:
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
 
         # we are ready to initialise deepspeed ZeRO now
-        self.ds_engine = deepspeed.initialize(model=self.model,
+        self.ds_engine = deepspeed.initialize(model=self.model,  # this should really be init_inference()
                                               config_params=ds_config,
                                               model_parameters=None,
                                               optimizer=None,
@@ -126,21 +109,22 @@ class Inference:
 
     def evaluate_classification(self, distributed_dataset):
 
-        all_logits = []
-        all_tokens = []
+        # batch_id = 0
 
-        batch_id = 0
-
-        while True:
+        while True:  # TODO: change this to be a for loop
             try:
                 batch = next(distributed_dataset)
-                option0, option1 = batch[::2], batch[1::2]
+                option0, option1 = batch[::2], batch[1::2]  # TODO: change dist dataset to zip as tuple or dict
 
-                batch_id += 1
-                print(f"batch id: {batch_id}")
+                # batch_id += 1
+                # print(f"batch id: {batch_id}")
 
+                # TODO: document why this; check if distributed data loader can be constructed w tuples/dicts
+                #  also figure out if local_rank here should be torch.distributed.get_rank()
                 tokenized_inputs0 = self.tokenizer(option0, return_tensors="pt", padding=True).to(device=local_rank)
                 tokenized_inputs1 = self.tokenizer(option1, return_tensors="pt", padding=True).to(device=local_rank)
+                # tokenized_inputs0 = self.tokenizer(option0, return_tensors="pt", padding=True).to(device=torch.distributed.get_rank())
+                # tokenized_inputs1 = self.tokenizer(option1, return_tensors="pt", padding=True).to(device=torch.distributed.get_rank())
                 outputs0 = self.ds_engine.module(**tokenized_inputs0)["logits"].detach().to(device="cpu", dtype=torch.float32)
                 outputs1 = self.ds_engine.module(**tokenized_inputs1)["logits"].detach().to(device="cpu", dtype=torch.float32)
 
@@ -149,39 +133,25 @@ class Inference:
                 #  but we're mostly interested in how fast we can pump data through for inference
                 #  evaluation can happen later by taking logits off of the GPU
 
-                # logits = outputs["logits"].detach().to(device="cpu", dtype=torch.float32)
-
-                # for x in batch:
-                #     tokenized_inputs = self.tokenizer(x, return_tensors="pt", truncation=True).to(device=local_rank)
-                #     outputs = self.ds_engine.module(**tokenized_inputs)
-                #     logits = outputs["logits"].detach().to(device="cpu", dtype=torch.float32)
-                #
-                #     # need to remove batch dimension
-                #     all_logits.append(torch.squeeze(logits))
-                #     all_tokens.append(torch.squeeze(tokenized_inputs["input_ids"]))
             except StopIteration:
                 # print("exhausted iterator")
-                return #{"all_logits": all_logits, "all_tokens": all_tokens}
-
-         # TODO: run evaluation here after inference
+                return
 
 
 if __name__ == '__main__':
 
     NUM_TRUNCATE = None  # 16
 
-    # FYI: 1007 examples, batch size of 16
+    # FYI: 1007 examples in the dataset, batch size of 16
     ds = load_dataset(num_truncate=NUM_TRUNCATE)
     ds_distributed = prepare(ds, batch_size=16)  # this is per-accelerator batch size
     ds_distributed_iter = iter(ds_distributed)
     #  note: this means len(next(ds_distributed_iter)) = 16, which is actually a batch size of 8 * 2 options
-    #   distributed dataset turns this into 8 * 8 = 64 actual batch size
+    #   distributed dataset turns this into 8 examples * 8 GPUs = 64 actual batch size
     #  1107 // 64 = 17 batches to run through the model
 
-    # exit()
+    infer = Inference()
 
     st = time.time()
-    infer = Inference()
     result = infer.evaluate_classification(ds_distributed_iter)
-
     print(f"Time taken: {time.time() - st}")
