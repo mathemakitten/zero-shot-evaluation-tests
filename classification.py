@@ -57,7 +57,9 @@ class Inference:
     def __init__(self):
 
         self.model_name = 'facebook/opt-6.7b'
-        # self.model_name = "facebook/opt-13b"
+        self.model_name = "facebook/opt-13b"
+        self.model_name = "facebook/opt-30b"
+        self.model_name = "facebook/opt-66b"
 
         # FYI: from_pretrained(..., low_cpu_mem_usage=True) is incompatible with zero.init stage 3
         #  normally Transformers uses 2x of model size in CPU memory while loading the model
@@ -77,8 +79,8 @@ class Inference:
             "zero_optimization": {
                 "stage": 3,
                 "offload_param": {
-                    "device": "none",
-                    "pin_memory": True
+                    "device": "cpu",  # change this from "none" to offload to CPU: {"device": "cpu"}
+                    # "pin_memory": True
                 },
                 "overlap_comm": True,
                 "contiguous_gradients": True,
@@ -109,15 +111,15 @@ class Inference:
 
     def evaluate_classification(self, distributed_dataset):
 
-        # batch_id = 0
+        batch_id = 0
 
         while True:  # TODO: change this to be a for loop
             try:
                 batch = next(distributed_dataset)
                 option0, option1 = batch[::2], batch[1::2]  # TODO: change dist dataset to zip as tuple or dict
 
-                # batch_id += 1
-                # print(f"batch id: {batch_id}")
+                batch_id += 1
+                print(f"batch id: {batch_id}")
 
                 # TODO: document why this; check if distributed data loader can be constructed w tuples/dicts
                 #  also figure out if local_rank here should be torch.distributed.get_rank()
@@ -150,8 +152,9 @@ if __name__ == '__main__':
     #   distributed dataset turns this into 8 examples * 8 GPUs = 64 actual batch size
     #  1107 // 64 = 17 batches to run through the model
 
+    st = time.time()
     infer = Inference()
 
-    st = time.time()
+    print(f"Compile time: {time.time() - st}")
     result = infer.evaluate_classification(ds_distributed_iter)
-    print(f"Time taken: {time.time() - st}")
+    print(f"Total time taken: {time.time() - st}")
