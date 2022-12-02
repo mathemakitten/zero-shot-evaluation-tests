@@ -22,8 +22,6 @@ world_size = int(os.getenv('WORLD_SIZE', '1'))
 torch.cuda.set_device(local_rank)
 deepspeed.init_distributed()
 
-model_hidden_size = config.hidden_size
-
 train_batch_size = 1 * world_size
 
 ds_config = {
