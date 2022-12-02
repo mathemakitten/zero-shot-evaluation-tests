@@ -22,10 +22,6 @@ world_size = int(os.getenv('WORLD_SIZE', '1'))
 torch.cuda.set_device(local_rank)
 deepspeed.init_distributed()
 
-model_name = "huggingface/opt-175b"
-model_name = "facebook/opt-125m"
-config = AutoConfig.from_pretrained(model_name, use_auth_token=True)
-print(config)
 model_hidden_size = config.hidden_size
 
 train_batch_size = 1 * world_size
@@ -125,10 +121,11 @@ class Inference:
         self.model_name = "facebook/opt-30b"
         self.model_name = "facebook/opt-66b"
         self.model_name = 'facebook/opt-125m'
+        self.model_name = "huggingface/opt-175b"
 
         # FYI: from_pretrained(..., low_cpu_mem_usage=True) is incompatible with zero.init stage 3
         #  normally Transformers uses 2x of model size in CPU memory while loading the model
-        self.config = AutoConfig.from_pretrained(self.model_name)
+        self.config = AutoConfig.from_pretrained(self.model_name, use_auth_token=True)
         # print(config)
         self.model_hidden_size = self.config.hidden_size
 
@@ -163,8 +160,8 @@ class Inference:
         #  see: https://huggingface.co/docs/transformers/main/main_classes/deepspeed#deepspeed-non-trainer-integration
         self.dschf = HfDeepSpeedConfig(ds_config)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=False)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=False, use_auth_token=True)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, use_auth_token=True)
 
         # we are ready to initialise deepspeed ZeRO now
         self.ds_engine = deepspeed.initialize(model=self.model,  # this should really be init_inference()
@@ -264,7 +261,7 @@ if __name__ == '__main__':
     ds_distributed = prepare(ds, batch_size=1)  # this is per-accelerator batch size
     ds_distributed_iter = iter(ds_distributed)
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+    # tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
     # print(evaluate_classification(ds_engine, tokenizer, test_examples))
 
     st = time.time()
