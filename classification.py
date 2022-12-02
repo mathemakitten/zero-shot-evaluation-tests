@@ -56,14 +56,17 @@ class Inference:
 
     def __init__(self):
 
+        self.model_name = 'facebook/opt-125m'
         self.model_name = 'facebook/opt-6.7b'
         self.model_name = "facebook/opt-13b"
         self.model_name = "facebook/opt-30b"
         self.model_name = "facebook/opt-66b"
+        self.model_name = "bigscience/bloom"
 
         # FYI: from_pretrained(..., low_cpu_mem_usage=True) is incompatible with zero.init stage 3
         #  normally Transformers uses 2x of model size in CPU memory while loading the model
-        self.config = AutoConfig.from_pretrained(self.model_name)
+        self.config = AutoConfig.from_pretrained(self.model_name, use_auth_token=True)
+
         # print(config)
         self.model_hidden_size = self.config.hidden_size
 

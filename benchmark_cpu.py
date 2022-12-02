@@ -28,18 +28,29 @@ def load_dataset(num_truncate=None):
 
 ds = load_dataset(num_truncate=None)  # 276 batches
 
-model_name = "facebook/opt-6.7b"  # requires 35 GB of RAM to load
-model_name = "facebook/opt-13b"
+model_name = "facebook/opt-125m"
+#model_name = "facebook/opt-6.7b"  # requires 35 GB of RAM to load
+#model_name = "facebook/opt-13b"
+#model_name = "facebook/opt-30b"
+#model_name = "facebook/opt-66b"
+#model_name = "bigscience/bloom"
+
+st = time.time()
 
 conf = AutoConfig.from_pretrained(model_name, use_auth_token=True)
 tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
-st = time.time()
+print(f"Compilation time: {time.time() - st}")
+nt = time.time()
+
+
 for i, x in enumerate(list(chunks(ds, n=8))):
     print(f"Batch {i}")
     # Tokenize
+    st = time.time()
     tokenized_inputs = tokenizer(x, return_tensors="pt", padding=True)
     outputs = model(**tokenized_inputs)
+    print(f"Time per batch: {}")
 
-print(f"Time taken, without compilation: {time.time() - st}")
+print(f"Time taken, without compilation: {time.time() - nt}")
